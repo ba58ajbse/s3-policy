@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+  ProdS3:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: prod-bucket-qwer
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  # 本番へのアクセスを定義するバケットポリシー
+  # Conditionで定義されたIPからアクセスしてきたユーザーに定義したアクションを許可する
+  ProdBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ProdS3
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Principal:
+              AWS: <user.arn>
+            Effect: Deny
+            Action: "s3:*"
+            Resource:
+              - !Sub ${ProdS3.Arn}
+              - !Sub ${ProdS3.Arn}/*
+            Condition:
+              NotIpAddress:
+                aws:SourceIp:
+                  - "xxx.xxx.xxx.xxx"
+    DependsOn:
+      - ProdS3
+
+  QAS3:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: qa-bucket-qwer
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  # QAへのアクセスを定義するバケットポリシー
+  # Conditionで定義されたIPからアクセスしてきたユーザーに定義したアクションを許可する
+  QABucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref QAS3
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Principal:
+              AWS: <user.arn>
+            Effect: Deny
+            Action: "s3:*"
+            Resource:
+              - !Sub ${QAS3.Arn}
+              - !Sub ${QAS3.Arn}/*
+            Condition:
+              NotIpAddress:
+                aws:SourceIp:
+                  - "yyy.yyy.yyy.yyy"
+                  - "zzz.zzz.zzz.zzz"
+    DependsOn:
+      - QAS3
+
+  # 本番へのアクセスを管理するグループ
+  ProdS3Group:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: prod-s3-group
+      ManagedPolicyArns:
+        - !Ref ProdS3Policy
+    DependsOn:
+      - ProdS3Policy
+
+  # QAへのアクセスを管理するグループ
+  QAS3Group:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: qa-s3-group
+      ManagedPolicyArns:
+        - !Ref QAS3Policy
+    DependsOn:
+      - QAS3Policy
+
+  # 本番のS3へのアクセスを許可するポリシー
+  ProdS3Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: prod-s3-allow-policy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "s3:*"
+            Resource:
+              - !Sub ${ProdS3.Arn}
+              - !Sub ${ProdS3.Arn}/*
+            Condition:
+              IpAddress:
+                aws:SourceIp:
+                  - "xxx.xxx.xxx.xxx"
+
+  # QAのS3へのアクセスを許可するポリシー
+  QAS3Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: qa-s3-allow-policy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "s3:*"
+            Resource:
+              - !Sub ${QAS3.Arn}
+              - !Sub ${QAS3.Arn}/*
+            Condition:
+              IpAddress:
+                aws:SourceIp:
+                  - "yyy.yyy.yyy.yyy"
+                  - "zzz.zzz.zzz.zzz"
+
+  # IpAddressの制限をユーザーにアタッチする
+  RestrictIPPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: restrict-ip-policy
+      Users:
+        - <user>
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Deny
+            Action: "*"
+            Resource: "*"
+            Condition:
+              NotIpAddress:
+                aws:SourceIp:
+                  - "xxx.xxx.xxx.xxx"
+                  - "yyy.yyy.yyy.yyy"
+                  - "zzz.zzz.zzz.zzz"
